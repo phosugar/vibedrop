@@ -56,6 +56,15 @@ class MemoryStore {
     return this.sessions.get(code)
   }
 
+  /** 显式标记上传完成（比被动 reached >= totalBytes 更可靠） */
+  finalize(code: string): boolean {
+    const session = this.sessions.get(code)
+    if (!session) return false
+    session.done = true
+    session.uploadedBytes = session.totalBytes
+    return true
+  }
+
   /** 标记消费者已挂载 */
   markConsumerAttached(code: string): boolean {
     const session = this.sessions.get(code)

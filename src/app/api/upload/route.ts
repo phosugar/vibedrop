@@ -41,6 +41,22 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: '提取码无效或已过期' }, { status: 404 })
   }
+
+  // Step B-finalize: 显式标记上传完成，确保 store.done 可靠写入
+  const finalize = searchParams.get('finalize')
+  if (finalize) {
+    const ok = store.finalize(code)
+    if (!ok) {
+      return NextResponse.json({ error: '提取码无效或已过期' }, { status: 404 })
+    }
+    return NextResponse.json({
+      code,
+      uploadedBytes: session.uploadedBytes,
+      totalBytes: session.totalBytes,
+      done: true,
+    })
+  }
+
   if (session.done) {
     return NextResponse.json({ error: '文件已上传完成' }, { status: 400 })
   }

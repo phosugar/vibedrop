@@ -17,8 +17,8 @@ export default function HomePage() {
   const [error, setError] = useState('')
 
   const handleFileSelected = useCallback((file: File) => {
-    if (file.size > 500 * 1024 * 1024) {
-      setError('文件大小超过 500MB 限制')
+    if (file.size > 50 * 1024 * 1024) {
+      setError('文件大小超过 50MB 限制 —— 免费服务器内存有限，请压缩或分批传输喵～')
       return
     }
     setSelectedFile(file)
@@ -48,17 +48,37 @@ export default function HomePage() {
       const { code: sessionCode } = await initRes.json()
       setCode(sessionCode)
 
-      // Step 2: 流式上传
-      const uploadRes = await fetch(`/api/upload?code=${sessionCode}`, {
-        method: 'POST',
-        body: file,
-        headers: { 'Content-Type': 'application/octet-stream' },
-      })
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json()
-        throw new Error(err.error || '上传失败')
+      // Step 2: 分块流式上传 — 每次 64KB，实时更新进度
+      const CHUNK_SIZE = 64 * 1024 // 64KB
+      let offset = 0
+
+      while (offset < file.size) {
+        const end = Math.min(offset + CHUNK_SIZE, file.size)
+        const chunk = file.slice(offset, end)
+
+        const uploadRes = await fetch(`/api/upload?code=${sessionCode}`, {
+          method: 'POST',
+          body: chunk,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        })
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json()
+          throw new Error(err.error || '上传失败')
+        }
+
+        offset = end
+        setLoaded(offset)
       }
-      setLoaded(file.size)
+
+      // Step 3: 显式标记上传完成
+      const finalizeRes = await fetch(`/api/upload?code=${sessionCode}&finalize=1`, {
+        method: 'POST',
+      })
+      if (!finalizeRes.ok) {
+        const err = await finalizeRes.json()
+        throw new Error(err.error || '标记完成失败')
+      }
+
       setStep('done')
     } catch (e) {
       setError(e instanceof Error ? e.message : '上传出错')
