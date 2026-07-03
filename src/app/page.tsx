@@ -48,8 +48,8 @@ export default function HomePage() {
       const { code: sessionCode } = await initRes.json()
       setCode(sessionCode)
 
-      // Step 2: 分块流式上传 — 每次 64KB，实时更新进度
-      const CHUNK_SIZE = 64 * 1024 // 64KB
+      // Step 2: 分块流式上传 — 每次 256KB，减少握手次数最大化带宽
+      const CHUNK_SIZE = 256 * 1024 // 256KB
       let offset = 0
 
       while (offset < file.size) {

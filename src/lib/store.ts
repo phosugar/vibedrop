@@ -73,13 +73,12 @@ class MemoryStore {
     return true
   }
 
-  /** 读完所有数据块并销毁 */
-  consume(code: string): { meta: TransferSession['meta']; chunks: Buffer[] } | null {
+  /** 获取 session 的所有 chunks（只读，不删除）。
+   *  5 分钟内支持多次下载，销毁只由 cleanup() 定时器负责。 */
+  getChunks(code: string): { meta: TransferSession['meta']; chunks: Buffer[] } | null {
     const session = this.sessions.get(code)
-    if (!session) return null
-    const result = { meta: session.meta, chunks: session.chunks }
-    this.sessions.delete(code)
-    return result
+    if (!session || !session.done) return null
+    return { meta: session.meta, chunks: session.chunks }
   }
 
   /** 销毁 session */

@@ -4,8 +4,8 @@ import { store } from '@/lib/store'
 /**
  * GET /api/download?code=XXXX
  *
-  */
-
+ * 5 分钟内支持多次下载，文件由定时器统一过期销毁。
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
@@ -20,17 +20,19 @@ export async function GET(request: NextRequest) {
   }
 
   if (!session.done) {
-    // 上传尚未完成 — 等待模式（轮询）
-    // 为简化不做长轮询，直接返回状态让前端轮询
-    return NextResponse.json({ error: '文件尚未上传完成', uploadedBytes: session.uploadedBytes, totalBytes: session.totalBytes }, { status: 425 })
+    return NextResponse.json(
+      { error: '文件尚未上传完成', uploadedBytes: session.uploadedBytes, totalBytes: session.totalBytes },
+      { status: 425 }
+    )
   }
 
-  // 标记消费者已挂载（用于状态展示）
+  // 标记消费者（用于状态展示）
   store.markConsumerAttached(code)
 
-  const result = store.consume(code)
+  // 只读获取 chunks，不删除 —— 5 分钟内支持重复下载
+  const result = store.getChunks(code)
   if (!result) {
-    return NextResponse.json({ error: '文件已被取走' }, { status: 410 })
+    return NextResponse.json({ error: '文件读取失败' }, { status: 500 })
   }
 
   const { meta, chunks } = result
