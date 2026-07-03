@@ -8,6 +8,11 @@ import CodeDisplay from '@/components/CodeDisplay'
 
 type PageStep = 'idle' | 'uploading' | 'done' | 'error'
 
+/** 单个 chunk 大小 */
+const CHUNK_SIZE = 256 * 1024
+/** 并发上传连接数 */
+const UPLOAD_CONCURRENCY = 4
+
 export default function HomePage() {
   const [step, setStep] = useState<PageStep>('idle')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -29,8 +34,56 @@ export default function HomePage() {
     startUpload(file)
   }, [])
 
+  /** 并发上传池：最多 N 个线程并行发送 chunk */
+  async function uploadWithConcurrency(
+    sessionCode: string,
+    tasks: Array<{ chunk: Blob; index: number; size: number }>
+  ) {
+    const results = new Array(tasks.length).fill(false)
+    let completedBytes = 0
+    let nextIndex = 0
+
+    async function runOne() {
+      while (nextIndex < tasks.length) {
+        const i = nextIndex++
+        const { chunk, index, size } = tasks[i]
+        const res = await fetch(`/api/upload?code=${sessionCode}&index=${index}`, {
+          method: 'POST',
+          body: chunk,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || '上传失败')
+        }
+        results[i] = true
+        completedBytes += size
+        setLoaded(completedBytes)
+      }
+    }
+
+    // 启动 N 个并发 worker
+    const workers = Array.from({ length: UPLOAD_CONCURRENCY }, () => runOne())
+    await Promise.all(workers)
+
+    // 验证所有 chunk 都成功了
+    if (!results.every(Boolean)) {
+      throw new Error('部分分块上传失败')
+    }
+  }
+
   async function startUpload(file: File) {
     try {
+      // 预计算 chunk 信息
+      const chunkCount = Math.ceil(file.size / CHUNK_SIZE)
+      const tasks: Array<{ chunk: Blob; index: number; size: number }> = []
+      let offset = 0
+      for (let i = 0; i < chunkCount; i++) {
+        const end = Math.min(offset + CHUNK_SIZE, file.size)
+        tasks.push({ chunk: file.slice(offset, end), index: i, size: end - offset })
+        offset = end
+      }
+
       // Step 1: 初始化会话
       const initRes = await fetch('/api/upload', {
         method: 'POST',
@@ -39,6 +92,7 @@ export default function HomePage() {
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type || 'application/octet-stream',
+          chunkCount,
         }),
       })
       if (!initRes.ok) {
@@ -48,27 +102,8 @@ export default function HomePage() {
       const { code: sessionCode } = await initRes.json()
       setCode(sessionCode)
 
-      // Step 2: 分块流式上传 — 每次 256KB，减少握手次数最大化带宽
-      const CHUNK_SIZE = 256 * 1024 // 256KB
-      let offset = 0
-
-      while (offset < file.size) {
-        const end = Math.min(offset + CHUNK_SIZE, file.size)
-        const chunk = file.slice(offset, end)
-
-        const uploadRes = await fetch(`/api/upload?code=${sessionCode}`, {
-          method: 'POST',
-          body: chunk,
-          headers: { 'Content-Type': 'application/octet-stream' },
-        })
-        if (!uploadRes.ok) {
-          const err = await uploadRes.json()
-          throw new Error(err.error || '上传失败')
-        }
-
-        offset = end
-        setLoaded(offset)
-      }
+      // Step 2: 并发上传所有 chunk（4 线程）
+      await uploadWithConcurrency(sessionCode, tasks)
 
       // Step 3: 显式标记上传完成
       const finalizeRes = await fetch(`/api/upload?code=${sessionCode}&finalize=1`, {
@@ -97,7 +132,6 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center bg-gradient-to-b from-[#0b0b10] via-[#0e0e15] to-[#0b0b10]">
-      {/* 顶部导航 */}
       <header className="flex w-full max-w-2xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-2">
           <div className="flex size-8 items-center justify-center rounded-xl bg-indigo-500/15">
@@ -107,9 +141,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 主内容 */}
       <main className="flex w-full max-w-md flex-1 flex-col items-center justify-center px-6 pb-24">
-        {/* 标题 */}
         {step === 'idle' && (
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold tracking-tight text-white/90">
@@ -126,12 +158,11 @@ export default function HomePage() {
             <FileDropzone onFileSelected={handleFileSelected} />
             <div className="flex items-center justify-center gap-1.5 text-xs text-white/25">
               <Globe className="size-3" />
-              <span>无需同一局域网 · 纯内存中转 · 即用即走</span>
+              <span>无需同一局域网 · 纯内存中转 · 4线程并发传输</span>
             </div>
           </div>
         )}
 
-        {/* 上传中 */}
         {(step === 'uploading' || (step === 'done' && loaded < total)) && (
           <div className="w-full space-y-6">
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 backdrop-blur-sm">
@@ -146,7 +177,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* 上传完成 → 展示提取码 */}
         {step === 'done' && code && (
           <div className="w-full space-y-4 text-center">
             <div className="space-y-1">
@@ -163,7 +193,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* 错误状态 */}
         {step === 'error' && (
           <div className="w-full space-y-4 text-center">
             <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6 backdrop-blur-sm">
@@ -179,7 +208,6 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* 底部 */}
       <footer className="w-full max-w-2xl px-6 py-4 text-center text-xs text-white/15">
         VibeDrop · 纯内存中转，数据不留存
       </footer>

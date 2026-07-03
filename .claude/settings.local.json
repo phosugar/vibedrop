@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(taskkill //PID 25716 //F)"
+      "Bash(taskkill //PID 25716 //F)",
+      "Bash(bash -c \"cat '/e/桌面/claude project/vibesend/src/app/page.tsx'\")",
+      "Bash(bash -c \"cat '/e/桌面/claude project/vibesend/src/app/download/[code]/page.tsx'\")",
+      "Bash(\"cat '-/e/桌面/claude project/vibesend/src/lib/store.ts'\")",
+      "Bash(\"cat '/e/桌面/claude project/vibesend/src/lib/store.ts'\")",
+      "Bash(\"cat 'e:\\\\\\\\桌面\\\\\\\\claude project\\\\\\\\vibesend\\\\\\\\src\\\\\\\\app\\\\\\\\api\\\\\\\\upload\\\\\\\\route.ts'\")",
+      "Bash(npm run *)"
     ]
   }
 }

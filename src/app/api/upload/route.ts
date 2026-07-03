@@ -22,14 +22,14 @@ export async function POST(request: NextRequest) {
   // --- Step A: 初始化会话 ---
   if (!code) {
     try {
-      const body: FileMeta = await request.json()
+      const body: FileMeta & { chunkCount?: number } = await request.json()
       if (!body.fileName || !body.fileSize || !body.mimeType) {
         return NextResponse.json({ error: '缺少必要字段: fileName, fileSize, mimeType' }, { status: 400 })
       }
       if (body.fileSize <= 0) {
         return NextResponse.json({ error: '文件大小必须大于 0' }, { status: 400 })
       }
-      const sessionCode = store.create(body.fileName, body.fileSize, body.mimeType)
+      const sessionCode = store.create(body.fileName, body.fileSize, body.mimeType, body.chunkCount || Math.ceil(body.fileSize / (256 * 1024)))
       return NextResponse.json({ code: sessionCode })
     } catch {
       return NextResponse.json({ error: '请求体必须是有效的 JSON' }, { status: 400 })
@@ -61,6 +61,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '文件已上传完成' }, { status: 400 })
   }
 
+  // 读取 index 参数（并发上传时前端发送，确保乱序写入正确位置）
+  const indexStr = searchParams.get('index')
+  const targetIndex = indexStr !== null ? parseInt(indexStr, 10) : -1
+
   try {
     const reader = request.body?.getReader()
     if (!reader) {
@@ -71,7 +75,19 @@ export async function POST(request: NextRequest) {
       const { done, value } = await reader.read()
       if (done) break
       if (value && value.byteLength > 0) {
-        store.appendChunk(code, Buffer.from(value))
+        const buf = Buffer.from(value)
+        if (targetIndex >= 0) {
+          // 并发模式：按前端指定的 index 精确写入
+          store.appendChunk(code, targetIndex, buf)
+        } else {
+          // 兼容旧版串行模式：追加到下一个空闲位置
+          for (let i = 0; i < session.chunkCount; i++) {
+            if (!session.chunks[i]) {
+              store.appendChunk(code, i, buf)
+              break
+            }
+          }
+        }
       }
     }
 

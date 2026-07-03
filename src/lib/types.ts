@@ -9,19 +9,16 @@ export interface FileMeta {
 export interface TransferSession {
   code: string
   meta: FileMeta
-  chunks: Buffer[]
+  /** 按 index 存储的数据块（预分配数组，支持并发乱序写入） */
+  chunks: (Buffer | undefined)[]
+  /** chunk 总数量 */
+  chunkCount: number
   uploadedBytes: number
   totalBytes: number
   createdAt: number
   expiresAt: number
   done: boolean
-  /** 是否有接收端正在挂载下载流 */
   consumerAttached: boolean
-}
-
-export interface UploadChunk {
-  index: number
-  data: string // base64
 }
 
 export type TransferStatus = 'waiting' | 'uploading' | 'ready' | 'downloading' | 'finished' | 'expired'

@@ -16,9 +16,8 @@ class MemoryStore {
   }
 
   /** 创建一个新传输会话，返回 4 位提取码 */
-  create(fileName: string, fileSize: number, mimeType: string): string {
+  create(fileName: string, fileSize: number, mimeType: string, chunkCount: number): string {
     let code: string
-    // 避免碰撞
     do {
       code = generateCode()
     } while (this.sessions.has(code))
@@ -27,7 +26,8 @@ class MemoryStore {
     const session: TransferSession = {
       code,
       meta: { fileName, fileSize, mimeType },
-      chunks: [],
+      chunks: new Array(chunkCount), // 预分配按 index 存储
+      chunkCount,
       uploadedBytes: 0,
       totalBytes: fileSize,
       createdAt: now,
@@ -39,13 +39,18 @@ class MemoryStore {
     return code
   }
 
-  /** 追加数据块 */
-  appendChunk(code: string, chunk: Buffer): boolean {
+  /** 按 index 追加数据块（支持并发乱序到达） */
+  appendChunk(code: string, index: number, chunk: Buffer): boolean {
     const session = this.sessions.get(code)
     if (!session || session.done) return false
-    session.chunks.push(chunk)
+    if (index < 0 || index >= session.chunkCount) return false
+    if (session.chunks[index]) return false // 重复块，忽略
+    session.chunks[index] = chunk
     session.uploadedBytes += chunk.length
-    if (session.uploadedBytes >= session.totalBytes) {
+
+    // 检查是否所有 chunk 都已到达
+    const allArrived = session.chunks.every(c => c !== undefined)
+    if (allArrived && session.uploadedBytes >= session.totalBytes) {
       session.done = true
     }
     return true
@@ -56,7 +61,7 @@ class MemoryStore {
     return this.sessions.get(code)
   }
 
-  /** 显式标记上传完成（比被动 reached >= totalBytes 更可靠） */
+  /** 显式标记上传完成 */
   finalize(code: string): boolean {
     const session = this.sessions.get(code)
     if (!session) return false
@@ -78,7 +83,47 @@ class MemoryStore {
   getChunks(code: string): { meta: TransferSession['meta']; chunks: Buffer[] } | null {
     const session = this.sessions.get(code)
     if (!session || !session.done) return null
-    return { meta: session.meta, chunks: session.chunks }
+    // 过滤掉稀疏数组中未收到的 chunk（理论上 done 时应该全到齐了）
+    const chunks = session.chunks.filter((c): c is Buffer => c !== undefined)
+    return { meta: session.meta, chunks }
+  }
+
+  /** 获取指定 index 范围的 chunks（用于 Range 请求） */
+  getChunksRange(
+    code: string,
+    startIndex: number,
+    endIndex: number,
+  ): { meta: TransferSession['meta']; chunks: Buffer[]; range: { start: number; end: number; total: number } } | null {
+    const session = this.sessions.get(code)
+    if (!session || !session.done) return null
+    const actualStart = Math.max(0, startIndex)
+    const actualEnd = Math.min(endIndex, session.chunkCount - 1)
+    const selected = session.chunks
+      .slice(actualStart, actualEnd + 1)
+      .filter((c): c is Buffer => c !== undefined)
+    const totalBytes = session.totalBytes
+    const startByte = actualStart > 0
+      ? session.chunks.slice(0, actualStart).reduce((s, c) => s + (c?.length ?? 0), 0)
+      : 0
+    const endByte = startByte + selected.reduce((s, c) => s + c.length, 0) - 1
+    return {
+      meta: session.meta,
+      chunks: selected,
+      range: { start: startByte, end: endByte, total: totalBytes },
+    }
+  }
+
+  /** 获取 chunk 大小（用于将 byte range 映射到 chunk index） */
+  getChunkSize(code: string): number {
+    const session = this.sessions.get(code)
+    if (!session || session.chunkCount === 0) return 0
+    return Math.ceil(session.totalBytes / session.chunkCount)
+  }
+
+  /** 获取 chunk 数量 */
+  getChunkCount(code: string): number {
+    const session = this.sessions.get(code)
+    return session?.chunkCount ?? 0
   }
 
   /** 销毁 session */
@@ -96,7 +141,6 @@ class MemoryStore {
     }
   }
 
-  /** 获取当前活跃 session 数量 */
   get activeCount(): number {
     return this.sessions.size
   }
