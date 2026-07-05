@@ -39,7 +39,7 @@ export default function TransferProgress({ loaded, total, direction, done }: Tra
   const prevTimeRef = useRef(Date.now())
   const lastSpeedUpdateRef = useRef(0)
   const smoothedSpeedRef = useRef(0)
-  const SPEED_THROTTLE_MS = 300
+  const SPEED_THROTTLE_MS = 150
 
   const percent = total > 0 ? Math.min((loaded / total) * 100, 100) : 0
 
@@ -68,10 +68,15 @@ export default function TransferProgress({ loaded, total, direction, done }: Tra
       const deltaBytes = loaded - prevLoadedRef.current
       if (deltaBytes > 0) {
         const rawSpeed = deltaBytes / (elapsed / 1000)
-        // 指数移动平均 (EMA) 平滑速度，alpha=0.4 给予近期数据更高权重
-        const alpha = 0.4
+        // 指数移动平均 (EMA) 平滑速度，alpha=0.6 更贴近实时数据
+        const alpha = 0.6
         smoothedSpeedRef.current = rawSpeed * alpha + smoothedSpeedRef.current * (1 - alpha)
         setSmoothedSpeed(smoothedSpeedRef.current)
+        // 计算剩余时间
+        const remaining = total - loaded
+        if (smoothedSpeedRef.current > 0 && remaining > 0) {
+          setEta(remaining / smoothedSpeedRef.current)
+        }
         prevLoadedRef.current = loaded
         prevTimeRef.current = now
       }

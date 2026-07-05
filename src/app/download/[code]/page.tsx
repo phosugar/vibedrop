@@ -73,8 +73,8 @@ export default function DownloadPage() {
       setTotal(info.totalBytes)
 
       // Step 2: 计算 chunk 数量和每 chunk 大小
-      // 用 4MB 作为下载 chunk 单元，跟上传一致
-      const DL_CHUNK_BYTES = 4 * 1024 * 1024
+      // 用 2MB 作为下载 chunk 单元，跟上传保持一致
+      const DL_CHUNK_BYTES = 2 * 1024 * 1024
       const chunkCount = Math.ceil(info.totalBytes / DL_CHUNK_BYTES)
 
       // Step 3: 滑动窗口并发下载（同时最多 16 个请求）
