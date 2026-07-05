@@ -9,8 +9,8 @@ import CodeDisplay from '@/components/CodeDisplay'
 
 type PageStep = 'idle' | 'uploading' | 'done' | 'error'
 
-/** 单个 chunk 大小 */
-const CHUNK_SIZE = 1024 * 1024
+/** 单个 chunk 大小 (4MB) */
+const CHUNK_SIZE = 4 * 1024 * 1024
 /** 滑动窗口并发数 */
 const CONCURRENT_UPLOADS = 4
 
@@ -27,7 +27,7 @@ export default function HomePage() {
 
   const handleFileSelected = useCallback((file: File) => {
     if (file.size > 500 * 1024 * 1024) {
-      setError('文件大小超过 500MB 限制 —— 免费服务器内存有限，请压缩或分批传输喵～')
+      setError('文件大小超过 500MB 限制 —— 免费服务器内存有限，请压缩或分批传输')
       return
     }
     setSelectedFile(file)
@@ -149,7 +149,7 @@ export default function HomePage() {
 
       <main className="flex w-full max-w-md flex-1 flex-col items-center justify-center px-6 pb-24">
         {step === 'idle' && (
-          <div className="mb-8 text-center">
+          <div className="mb-10 text-center">
             <h1 className="text-3xl font-bold tracking-tight text-white/90">
               跨网络文件快传
             </h1>
@@ -160,7 +160,7 @@ export default function HomePage() {
         )}
 
         {step === 'idle' && (
-          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="w-full max-w-md space-y-6">
             {/* 发送文件卡片 */}
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-6 backdrop-blur-sm">
               <div className="mb-4 flex items-center gap-3">
@@ -187,7 +187,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <input
                     type="text"
                     maxLength={4}
@@ -200,18 +200,18 @@ export default function HomePage() {
                       if (e.key === 'Enter') handleReceive()
                     }}
                     placeholder="0000"
-                    className="w-28 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white/80 outline-none placeholder:text-white/20 focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/10"
+                    className="w-28 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white/80 outline-none placeholder:text-white/20 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10"
                   />
                   <button
                     onClick={handleReceive}
                     disabled={!/^\d{4}$/.test(receiveCode)}
-                    className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:shadow-indigo-500/30 disabled:opacity-40 disabled:hover:shadow-indigo-500/20"
+                    className="shrink-0 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-violet-500/20 transition-all duration-200 hover:shadow-violet-500/30 disabled:opacity-40 disabled:hover:shadow-violet-500/20"
                   >
                     接收
                   </button>
                 </div>
                 {receiveError && (
-                  <p className="text-xs text-red-400">{receiveError}</p>
+                  <p className="text-center text-xs text-red-400">{receiveError}</p>
                 )}
                 <p className="text-center text-xs text-white/25">
                   或扫描二维码快速接收
