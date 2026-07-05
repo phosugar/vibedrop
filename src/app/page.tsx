@@ -9,10 +9,10 @@ import CodeDisplay from '@/components/CodeDisplay'
 
 type PageStep = 'idle' | 'uploading' | 'done' | 'error'
 
-/** 单个 chunk 大小 (4MB) */
-const CHUNK_SIZE = 4 * 1024 * 1024
+/** 单个 chunk 大小 (2MB，兼顾速度和可靠性) */
+const CHUNK_SIZE = 2 * 1024 * 1024
 /** 滑动窗口并发数 */
-const CONCURRENT_UPLOADS = 4
+const CONCURRENT_UPLOADS = 8
 
 export default function HomePage() {
   const router = useRouter()
@@ -50,14 +50,15 @@ export default function HomePage() {
       while (nextIndex < tasks.length) {
         const i = nextIndex++
         const { chunk, index, size } = tasks[i]
+        const startTime = Date.now()
         const res = await fetch(`/api/upload?code=${sessionCode}&index=${index}`, {
           method: 'POST',
           body: chunk,
           headers: { 'Content-Type': 'application/octet-stream' },
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error || '上传失败')
+        }).catch(() => null)
+        if (!res || !res.ok) {
+          const err = await res?.json().catch(() => ({}))
+          throw new Error(err?.error || '上传失败，请检查网络连接')
         }
         completedBytes += size
         setLoaded(completedBytes)

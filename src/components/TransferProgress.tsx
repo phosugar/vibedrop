@@ -32,34 +32,49 @@ function formatTime(seconds: number): string {
 }
 
 export default function TransferProgress({ loaded, total, direction, done }: TransferProgressProps) {
-  const [startTime] = useState(Date.now())
+  const startTimeRef = useRef(Date.now())
   const [smoothedSpeed, setSmoothedSpeed] = useState(0)
   const [eta, setEta] = useState(0)
-  const prevLoaded = useRef(0)
-  const prevTime = useRef(Date.now())
-  const lastSpeedUpdate = useRef(0)
+  const prevLoadedRef = useRef(loaded)
+  const prevTimeRef = useRef(Date.now())
+  const lastSpeedUpdateRef = useRef(0)
   const smoothedSpeedRef = useRef(0)
-  const SPEED_THROTTLE_MS = 500
+  const SPEED_THROTTLE_MS = 300
 
   const percent = total > 0 ? Math.min((loaded / total) * 100, 100) : 0
+
+  // 当 loaded 归零（新传输开始）时重置所有状态
+  useEffect(() => {
+    if (loaded === 0) {
+      prevLoadedRef.current = 0
+      prevTimeRef.current = Date.now()
+      lastSpeedUpdateRef.current = 0
+      smoothedSpeedRef.current = 0
+      setSmoothedSpeed(0)
+      setEta(0)
+      startTimeRef.current = Date.now()
+    }
+  }, [loaded])
 
   useEffect(() => {
     if (done || total <= 0) return
     const now = Date.now()
-    // 节流：每 500ms 才重新计算一次速度
-    if (now - lastSpeedUpdate.current < SPEED_THROTTLE_MS) return
-    lastSpeedUpdate.current = now
+    // 节流：每 300ms 才重新计算一次速度
+    if (now - lastSpeedUpdateRef.current < SPEED_THROTTLE_MS) return
+    lastSpeedUpdateRef.current = now
 
-    const elapsed = now - prevTime.current
+    const elapsed = now - prevTimeRef.current
     if (elapsed > 100) {
-      const deltaBytes = loaded - prevLoaded.current
-      const rawSpeed = deltaBytes / (elapsed / 1000)
-      // 指数移动平均 (EMA) 平滑速度，alpha=0.3 给予近期数据更高权重
-      const alpha = 0.3
-      smoothedSpeedRef.current = rawSpeed * alpha + smoothedSpeedRef.current * (1 - alpha)
-      setSmoothedSpeed(smoothedSpeedRef.current)
-      prevLoaded.current = loaded
-      prevTime.current = now
+      const deltaBytes = loaded - prevLoadedRef.current
+      if (deltaBytes > 0) {
+        const rawSpeed = deltaBytes / (elapsed / 1000)
+        // 指数移动平均 (EMA) 平滑速度，alpha=0.4 给予近期数据更高权重
+        const alpha = 0.4
+        smoothedSpeedRef.current = rawSpeed * alpha + smoothedSpeedRef.current * (1 - alpha)
+        setSmoothedSpeed(smoothedSpeedRef.current)
+        prevLoadedRef.current = loaded
+        prevTimeRef.current = now
+      }
     }
   }, [loaded, total, done])
 

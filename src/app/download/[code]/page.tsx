@@ -22,7 +22,6 @@ export default function DownloadPage() {
   const [error, setError] = useState('')
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const receivedRef = useRef(0)
-  const rafScheduledRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -64,7 +63,6 @@ export default function DownloadPage() {
     setStep('downloading')
     setLoaded(0)
     receivedRef.current = 0
-    rafScheduledRef.current = false
     try {
       // Step 1: 获取文件元信息（chunkCount + chunkSize）
       const infoRes = await fetch(`/api/status?code=${code}`)
@@ -82,17 +80,7 @@ export default function DownloadPage() {
       // Step 3: 滑动窗口并发下载（同时最多 16 个请求）
       const results = new Array(chunkCount).fill(null as Uint8Array | null)
       receivedRef.current = 0
-      rafScheduledRef.current = false
       let nextChunkIdx = 0
-
-      const scheduleProgressUpdate = () => {
-        if (rafScheduledRef.current) return
-        rafScheduledRef.current = true
-        requestAnimationFrame(() => {
-          setLoaded(receivedRef.current)
-          rafScheduledRef.current = false
-        })
-      }
 
       const worker = async () => {
         while (nextChunkIdx < chunkCount) {
@@ -111,7 +99,8 @@ export default function DownloadPage() {
           const chunk = new Uint8Array(arrayBuf)
           results[i] = chunk
           receivedRef.current += chunk.length
-          scheduleProgressUpdate()
+          // 直接 setLoaded，不经过 rAF 节流——TransferProgress 自己会做 EMA 平滑
+          setLoaded(receivedRef.current)
         }
       }
 
