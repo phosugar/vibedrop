@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       if (body.fileSize <= 0) {
         return NextResponse.json({ error: '文件大小必须大于 0' }, { status: 400 })
       }
-      const sessionCode = store.create(body.fileName, body.fileSize, body.mimeType, body.chunkCount || Math.ceil(body.fileSize / (256 * 1024)))
+      const sessionCode = store.create(body.fileName, body.fileSize, body.mimeType, body.chunkCount || Math.ceil(body.fileSize / (1024 * 1024)))
       return NextResponse.json({ code: sessionCode })
     } catch {
       return NextResponse.json({ error: '请求体必须是有效的 JSON' }, { status: 400 })

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Globe, ArrowLeftRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Globe, ArrowLeftRight, Send, Download } from 'lucide-react'
 import FileDropzone from '@/components/FileDropzone'
 import TransferProgress from '@/components/TransferProgress'
 import CodeDisplay from '@/components/CodeDisplay'
@@ -9,21 +10,24 @@ import CodeDisplay from '@/components/CodeDisplay'
 type PageStep = 'idle' | 'uploading' | 'done' | 'error'
 
 /** 单个 chunk 大小 */
-const CHUNK_SIZE = 256 * 1024
+const CHUNK_SIZE = 1024 * 1024
 /** 并发上传连接数 */
-const UPLOAD_CONCURRENCY = 4
+const UPLOAD_CONCURRENCY = 64
 
 export default function HomePage() {
+  const router = useRouter()
   const [step, setStep] = useState<PageStep>('idle')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [code, setCode] = useState<string>('')
   const [loaded, setLoaded] = useState(0)
   const [total, setTotal] = useState(0)
   const [error, setError] = useState('')
+  const [receiveCode, setReceiveCode] = useState('')
+  const [receiveError, setReceiveError] = useState('')
 
   const handleFileSelected = useCallback((file: File) => {
-    if (file.size > 50 * 1024 * 1024) {
-      setError('文件大小超过 50MB 限制 —— 免费服务器内存有限，请压缩或分批传输喵～')
+    if (file.size > 500 * 1024 * 1024) {
+      setError('文件大小超过 500MB 限制 —— 免费服务器内存有限，请压缩或分批传输喵～')
       return
     }
     setSelectedFile(file)
@@ -130,6 +134,16 @@ export default function HomePage() {
     setError('')
   }
 
+  const handleReceive = () => {
+    const trimmed = receiveCode.trim()
+    if (!/^\d{4}$/.test(trimmed)) {
+      setReceiveError('请输入 4 位数字提取码')
+      return
+    }
+    setReceiveError('')
+    router.push(`/download/${trimmed}`)
+  }
+
   return (
     <div className="flex min-h-dvh flex-col items-center bg-gradient-to-b from-[#0b0b10] via-[#0e0e15] to-[#0b0b10]">
       <header className="flex w-full max-w-2xl items-center justify-between px-6 py-5">
@@ -148,17 +162,69 @@ export default function HomePage() {
               跨网络文件快传
             </h1>
             <p className="mt-2 text-sm text-white/40">
-              拖拽文件 · 生成提取码 · 另一端输入即可下载
+              拖拽文件 · 输入提取码 · 即传即收
             </p>
           </div>
         )}
 
         {step === 'idle' && (
-          <div className="w-full space-y-4">
-            <FileDropzone onFileSelected={handleFileSelected} />
-            <div className="flex items-center justify-center gap-1.5 text-xs text-white/25">
-              <Globe className="size-3" />
-              <span>无需同一局域网 · 纯内存中转 · 4线程并发传输</span>
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 发送文件卡片 */}
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-6 backdrop-blur-sm">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-indigo-500/10">
+                  <Send className="size-5 text-indigo-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white/80">发送文件</p>
+                  <p className="text-xs text-white/40">拖拽或点击选择</p>
+                </div>
+              </div>
+              <FileDropzone onFileSelected={handleFileSelected} />
+            </div>
+
+            {/* 接收文件卡片 */}
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-6 backdrop-blur-sm">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-violet-500/10">
+                  <Download className="size-5 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white/80">接收文件</p>
+                  <p className="text-xs text-white/40">输入 4 位提取码</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={receiveCode}
+                    onChange={(e) => {
+                      setReceiveCode(e.target.value.replace(/\D/g, ''))
+                      setReceiveError('')
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleReceive()
+                    }}
+                    placeholder="0000"
+                    className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white/80 outline-none placeholder:text-white/20 focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/10"
+                  />
+                  <button
+                    onClick={handleReceive}
+                    disabled={!/^\d{4}$/.test(receiveCode)}
+                    className="rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:shadow-indigo-500/30 disabled:opacity-40 disabled:hover:shadow-indigo-500/20"
+                  >
+                    接收
+                  </button>
+                </div>
+                {receiveError && (
+                  <p className="text-xs text-red-400">{receiveError}</p>
+                )}
+                <p className="text-center text-xs text-white/25">
+                  或扫描二维码快速接收
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -209,7 +275,7 @@ export default function HomePage() {
       </main>
 
       <footer className="w-full max-w-2xl px-6 py-4 text-center text-xs text-white/15">
-        VibeDrop · 纯内存中转，数据不留存
+        VibeDrop · 纯内存中转，数据不留存 · 最大 500MB
       </footer>
     </div>
   )

@@ -99,7 +99,7 @@ export default function FileDropzone({ onFileSelected, disabled }: FileDropzoneP
           </p>
           <p className="mt-1 text-sm text-white/40">或点击选择文件</p>
         </div>
-        <p className="text-xs text-white/25">单文件 · 最大 50MB</p>
+        <p className="text-xs text-white/25">单文件 · 最大 500MB</p>
       </div>
     </div>
   )
