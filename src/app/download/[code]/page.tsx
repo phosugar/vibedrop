@@ -21,6 +21,8 @@ export default function DownloadPage() {
   const [loaded, setLoaded] = useState(0)
   const [error, setError] = useState('')
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const receivedRef = useRef(0)
+  const rafScheduledRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -61,6 +63,8 @@ export default function DownloadPage() {
   const handleDownload = useCallback(async () => {
     setStep('downloading')
     setLoaded(0)
+    receivedRef.current = 0
+    rafScheduledRef.current = false
     try {
       // Step 1: 获取文件元信息（chunkCount + chunkSize）
       const infoRes = await fetch(`/api/status?code=${code}`)
@@ -77,16 +81,16 @@ export default function DownloadPage() {
 
       // Step 3: 滑动窗口并发下载（同时最多 16 个请求）
       const results = new Array(chunkCount).fill(null as Uint8Array | null)
-      const receivedRef = useRef(0)
-      let rafScheduled = false
+      receivedRef.current = 0
+      rafScheduledRef.current = false
       let nextChunkIdx = 0
 
       const scheduleProgressUpdate = () => {
-        if (rafScheduled) return
-        rafScheduled = true
+        if (rafScheduledRef.current) return
+        rafScheduledRef.current = true
         requestAnimationFrame(() => {
           setLoaded(receivedRef.current)
-          rafScheduled = false
+          rafScheduledRef.current = false
         })
       }
 
