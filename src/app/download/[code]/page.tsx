@@ -8,8 +8,8 @@ import type { StatusResponse } from '@/lib/types'
 
 type PageStep = 'loading' | 'ready' | 'downloading' | 'done' | 'error'
 
-/** 滑动窗口下载并发数 */
-const CONCURRENT_DOWNLOADS = 16
+/** 滑动窗口下载并发数（最大化） */
+const CONCURRENT_DOWNLOADS = 32
 
 export default function DownloadPage() {
   const params = useParams()
@@ -73,8 +73,8 @@ export default function DownloadPage() {
       setTotal(info.totalBytes)
 
       // Step 2: 计算 chunk 数量和每 chunk 大小
-      // 用 2MB 作为下载 chunk 单元，跟上传保持一致
-      const DL_CHUNK_BYTES = 2 * 1024 * 1024
+      // 用 4MB 作为下载 chunk 单元，最大化吞吐量
+      const DL_CHUNK_BYTES = 4 * 1024 * 1024
       const chunkCount = Math.ceil(info.totalBytes / DL_CHUNK_BYTES)
 
       // Step 3: 滑动窗口并发下载（同时最多 16 个请求）
@@ -104,7 +104,7 @@ export default function DownloadPage() {
         }
       }
 
-      // 启动 4 个 worker 形成滑动窗口
+      // 启动 32 个 worker 形成滑动窗口
       await Promise.all(
         Array.from({ length: CONCURRENT_DOWNLOADS }, () => worker())
       )
@@ -189,8 +189,11 @@ export default function DownloadPage() {
                 transition-all duration-200 hover:shadow-indigo-500/30 active:scale-[0.98]"
             >
               <Download className="size-4" />
-              开始下载 · 16线程并发
+              开始下载 · 32线程并发
             </button>
+            <p className="text-center text-[10px] text-white/20">
+              下载速度不能代表真实速度喵
+            </p>
           </div>
         )}
 

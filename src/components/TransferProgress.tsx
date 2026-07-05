@@ -39,7 +39,7 @@ export default function TransferProgress({ loaded, total, direction, done }: Tra
   const prevTimeRef = useRef(Date.now())
   const lastSpeedUpdateRef = useRef(0)
   const smoothedSpeedRef = useRef(0)
-  const SPEED_THROTTLE_MS = 150
+  const SPEED_THROTTLE_MS = 100
 
   const percent = total > 0 ? Math.min((loaded / total) * 100, 100) : 0
 
@@ -59,7 +59,7 @@ export default function TransferProgress({ loaded, total, direction, done }: Tra
   useEffect(() => {
     if (done || total <= 0) return
     const now = Date.now()
-    // 节流：每 300ms 才重新计算一次速度
+    // 节流：每 100ms 才重新计算一次速度
     if (now - lastSpeedUpdateRef.current < SPEED_THROTTLE_MS) return
     lastSpeedUpdateRef.current = now
 
@@ -68,8 +68,8 @@ export default function TransferProgress({ loaded, total, direction, done }: Tra
       const deltaBytes = loaded - prevLoadedRef.current
       if (deltaBytes > 0) {
         const rawSpeed = deltaBytes / (elapsed / 1000)
-        // 指数移动平均 (EMA) 平滑速度，alpha=0.6 更贴近实时数据
-        const alpha = 0.6
+        // 指数移动平均 (EMA) 平滑速度，alpha=0.7 更贴近实时数据
+        const alpha = 0.7
         smoothedSpeedRef.current = rawSpeed * alpha + smoothedSpeedRef.current * (1 - alpha)
         setSmoothedSpeed(smoothedSpeedRef.current)
         // 计算剩余时间

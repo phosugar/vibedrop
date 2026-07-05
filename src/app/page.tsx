@@ -9,10 +9,10 @@ import CodeDisplay from '@/components/CodeDisplay'
 
 type PageStep = 'idle' | 'uploading' | 'done' | 'error'
 
-/** 单个 chunk 大小 (2MB，兼顾速度和可靠性) */
-const CHUNK_SIZE = 2 * 1024 * 1024
-/** 滑动窗口并发数 */
-const CONCURRENT_UPLOADS = 8
+/** 单个 chunk 大小 (4MB，最大化吞吐量) */
+const CHUNK_SIZE = 4 * 1024 * 1024
+/** 滑动窗口并发数（最大化） */
+const CONCURRENT_UPLOADS = 16
 
 export default function HomePage() {
   const router = useRouter()
@@ -99,7 +99,7 @@ export default function HomePage() {
       const { code: sessionCode } = await initRes.json()
       setCode(sessionCode)
 
-      // Step 2: 并发上传所有 chunk（4 线程）
+      // Step 2: 并发上传所有 chunk（16 线程）
       await uploadWithConcurrency(sessionCode, tasks)
 
       // Step 3: 显式标记上传完成
