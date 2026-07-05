@@ -8,8 +8,8 @@ import type { StatusResponse } from '@/lib/types'
 
 type PageStep = 'loading' | 'ready' | 'downloading' | 'done' | 'error'
 
-/** 下载并发数 */
-const DOWNLOAD_CONCURRENCY = 64
+/** 滑动窗口下载并发数 */
+const CONCURRENT_DOWNLOADS = 4
 
 export default function DownloadPage() {
   const params = useParams()
@@ -75,17 +75,14 @@ export default function DownloadPage() {
       const DL_CHUNK_BYTES = 1024 * 1024
       const chunkCount = Math.ceil(info.totalBytes / DL_CHUNK_BYTES)
 
-      // Step 3: 并发下载所有 chunk（N 线程）
+      // Step 3: 滑动窗口并发下载（同时最多 4 个请求）
       const results = new Array(chunkCount).fill(null as Uint8Array | null)
-      const completedMask = new Array(chunkCount).fill(false)
       let receivedBytes = 0
       let nextChunkIdx = 0
 
       const worker = async () => {
         while (nextChunkIdx < chunkCount) {
           const i = nextChunkIdx++
-          const start = i * DL_CHUNK_BYTES
-          const end = Math.min(start + DL_CHUNK_BYTES - 1, info.totalBytes - 1)
 
           const res = await fetch(
             `/api/download?code=${code}&chunkIndex=${i}`,
@@ -99,14 +96,14 @@ export default function DownloadPage() {
           const arrayBuf = await res.arrayBuffer()
           const chunk = new Uint8Array(arrayBuf)
           results[i] = chunk
-          completedMask[i] = true
           receivedBytes += chunk.length
           setLoaded(receivedBytes)
         }
       }
 
+      // 启动 4 个 worker 形成滑动窗口
       await Promise.all(
-        Array.from({ length: DOWNLOAD_CONCURRENCY }, () => worker())
+        Array.from({ length: CONCURRENT_DOWNLOADS }, () => worker())
       )
 
       // 验证所有 chunk 都到了
@@ -189,7 +186,7 @@ export default function DownloadPage() {
                 transition-all duration-200 hover:shadow-indigo-500/30 active:scale-[0.98]"
             >
               <Download className="size-4" />
-              开始下载 · 64线程并发
+              开始下载 · 4线程并发
             </button>
           </div>
         )}

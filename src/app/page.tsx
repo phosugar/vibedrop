@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Globe, ArrowLeftRight, Send, Download } from 'lucide-react'
+import { ArrowLeftRight, Send, Download } from 'lucide-react'
 import FileDropzone from '@/components/FileDropzone'
 import TransferProgress from '@/components/TransferProgress'
 import CodeDisplay from '@/components/CodeDisplay'
@@ -11,8 +11,8 @@ type PageStep = 'idle' | 'uploading' | 'done' | 'error'
 
 /** 单个 chunk 大小 */
 const CHUNK_SIZE = 1024 * 1024
-/** 并发上传连接数 */
-const UPLOAD_CONCURRENCY = 64
+/** 滑动窗口并发数 */
+const CONCURRENT_UPLOADS = 4
 
 export default function HomePage() {
   const router = useRouter()
@@ -38,16 +38,15 @@ export default function HomePage() {
     startUpload(file)
   }, [])
 
-  /** 并发上传池：最多 N 个线程并行发送 chunk */
+  /** 滑动窗口并发上传：同时最多 N 个请求，传完一个补一个 */
   async function uploadWithConcurrency(
     sessionCode: string,
     tasks: Array<{ chunk: Blob; index: number; size: number }>
   ) {
-    const results = new Array(tasks.length).fill(false)
     let completedBytes = 0
     let nextIndex = 0
 
-    async function runOne() {
+    async function worker() {
       while (nextIndex < tasks.length) {
         const i = nextIndex++
         const { chunk, index, size } = tasks[i]
@@ -60,20 +59,13 @@ export default function HomePage() {
           const err = await res.json()
           throw new Error(err.error || '上传失败')
         }
-        results[i] = true
         completedBytes += size
         setLoaded(completedBytes)
       }
     }
 
-    // 启动 N 个并发 worker
-    const workers = Array.from({ length: UPLOAD_CONCURRENCY }, () => runOne())
-    await Promise.all(workers)
-
-    // 验证所有 chunk 都成功了
-    if (!results.every(Boolean)) {
-      throw new Error('部分分块上传失败')
-    }
+    // 启动 N 个 worker 形成滑动窗口
+    await Promise.all(Array.from({ length: CONCURRENT_UPLOADS }, () => worker()))
   }
 
   async function startUpload(file: File) {
@@ -195,7 +187,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center justify-center gap-2">
                   <input
                     type="text"
                     maxLength={4}
@@ -208,12 +200,12 @@ export default function HomePage() {
                       if (e.key === 'Enter') handleReceive()
                     }}
                     placeholder="0000"
-                    className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white/80 outline-none placeholder:text-white/20 focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/10"
+                    className="w-28 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white/80 outline-none placeholder:text-white/20 focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/10"
                   />
                   <button
                     onClick={handleReceive}
                     disabled={!/^\d{4}$/.test(receiveCode)}
-                    className="rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:shadow-indigo-500/30 disabled:opacity-40 disabled:hover:shadow-indigo-500/20"
+                    className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:shadow-indigo-500/30 disabled:opacity-40 disabled:hover:shadow-indigo-500/20"
                   >
                     接收
                   </button>
