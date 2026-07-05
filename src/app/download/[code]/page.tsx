@@ -75,10 +75,20 @@ export default function DownloadPage() {
       const DL_CHUNK_BYTES = 4 * 1024 * 1024
       const chunkCount = Math.ceil(info.totalBytes / DL_CHUNK_BYTES)
 
-      // Step 3: 滑动窗口并发下载（同时最多 4 个请求）
+      // Step 3: 滑动窗口并发下载（同时最多 16 个请求）
       const results = new Array(chunkCount).fill(null as Uint8Array | null)
-      let receivedBytes = 0
+      const receivedRef = useRef(0)
+      let rafScheduled = false
       let nextChunkIdx = 0
+
+      const scheduleProgressUpdate = () => {
+        if (rafScheduled) return
+        rafScheduled = true
+        requestAnimationFrame(() => {
+          setLoaded(receivedRef.current)
+          rafScheduled = false
+        })
+      }
 
       const worker = async () => {
         while (nextChunkIdx < chunkCount) {
@@ -96,8 +106,8 @@ export default function DownloadPage() {
           const arrayBuf = await res.arrayBuffer()
           const chunk = new Uint8Array(arrayBuf)
           results[i] = chunk
-          receivedBytes += chunk.length
-          setLoaded(receivedBytes)
+          receivedRef.current += chunk.length
+          scheduleProgressUpdate()
         }
       }
 

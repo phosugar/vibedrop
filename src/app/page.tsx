@@ -200,7 +200,7 @@ export default function HomePage() {
                       if (e.key === 'Enter') handleReceive()
                     }}
                     placeholder="0000"
-                    className="w-28 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white/80 outline-none placeholder:text-white/20 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10"
+                    className="w-32 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-2xl font-mono tracking-[0.35em] text-white/80 outline-none placeholder:text-white/20 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10"
                   />
                   <button
                     onClick={handleReceive}

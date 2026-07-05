@@ -33,28 +33,37 @@ function formatTime(seconds: number): string {
 
 export default function TransferProgress({ loaded, total, direction, done }: TransferProgressProps) {
   const [startTime] = useState(Date.now())
-  const [speed, setSpeed] = useState(0)
+  const [smoothedSpeed, setSmoothedSpeed] = useState(0)
   const [eta, setEta] = useState(0)
   const prevLoaded = useRef(0)
   const prevTime = useRef(Date.now())
+  const lastSpeedUpdate = useRef(0)
+  const SPEED_THROTTLE_MS = 500
 
   const percent = total > 0 ? Math.min((loaded / total) * 100, 100) : 0
 
   useEffect(() => {
     if (done || total <= 0) return
     const now = Date.now()
+    // 节流：每 500ms 才重新计算一次速度
+    if (now - lastSpeedUpdate.current < SPEED_THROTTLE_MS) return
+    lastSpeedUpdate.current = now
+
     const elapsed = now - prevTime.current
-    if (elapsed > 300) {
+    if (elapsed > 100) {
       const deltaBytes = loaded - prevLoaded.current
-      const currentSpeed = deltaBytes / (elapsed / 1000)
-      setSpeed(currentSpeed)
+      const rawSpeed = deltaBytes / (elapsed / 1000)
+      // 指数移动平均 (EMA) 平滑速度，alpha=0.3 给予近期数据更高权重
+      const alpha = 0.3
+      const ema = rawSpeed * alpha + smoothedSpeed * (1 - alpha)
+      setSmoothedSpeed(ema)
       prevLoaded.current = loaded
       prevTime.current = now
-      if (currentSpeed > 0) {
-        setEta((total - loaded) / currentSpeed)
+      if (ema > 0) {
+        setEta((total - loaded) / ema)
       }
     }
-  }, [loaded, total, done])
+  }, [loaded, total, done, smoothedSpeed])
 
   // 方向图标
   const Icon = direction === 'upload' ? ArrowUp : ArrowDown
@@ -93,7 +102,7 @@ export default function TransferProgress({ loaded, total, direction, done }: Tra
 
       {/* 速度 & 剩余时间 */}
       <div className="flex items-center justify-between text-xs text-white/35">
-        <span>{formatSpeed(speed)}</span>
+        <span>{formatSpeed(smoothedSpeed)}</span>
         {loaded < total && (
           <span>剩余 {formatTime(eta)}</span>
         )}
