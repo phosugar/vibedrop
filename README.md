@@ -1,5 +1,7 @@
 # VibeDrop 🎯
 
+> 🔗 **在线体验**：[https://vibedrop-gwd5.onrender.com](https://vibedrop-gwd5.onrender.com)
+
 **跨网络文件快传工具** — 无需同一局域网，网页端即用即走。
 
 发送端拖入文件 → 生成 4 位提取码 → 接收端输入提取码即可下载。
@@ -31,7 +33,7 @@ npm run build && npm start
 4. 配置：
    - **Build Command**: `npm run build`
    - **Start Command**: `npm run start`
-5. 部署完成后访问 `https://你的应用.onrender.com`
+5. 部署完成后访问 `https://vibedrop-gwd5.onrender.com`
 
 ## 传输流程
 
